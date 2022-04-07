@@ -3,25 +3,20 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class Client : MonoBehaviour {
-	ClientUdp _udp;
+	private ClientUdp udp;
 	// Use this for initialization
-	void Start () {
+	private void Start () {
 		ServerTcp.Instance.StartServer();
-
-
-
-		  _udp = new ClientUdp(); 
-		_udp.StartClientUdp("192.168.1.18", 1);
-		 
+		
+		//udp
+		udp = new ClientUdp(); 
+		udp.StartClientUdp("192.168.3.151", 1);
 	}
 
-	void OnApplicationQuit()
+	private void OnApplicationQuit()
 	{
 		Debug.Log("quit"); 
-		_udp.EndClientUdp();
+		udp.EndClientUdp();
 		ServerTcp.Instance.EndServer();
-
 	}
-
-	 
 }

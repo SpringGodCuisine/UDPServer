@@ -16,22 +16,22 @@ public class ClientUdp {
 	private bool isRun;
 	private string serverIp;
 
-	public void StartClientUdp(string _ip,int _uid){
+	public void StartClientUdp(string ip,int uid){
 
 		if (sendEndPort != null) {
 			Debug.Log ("客户端udp已经启动~");
 			return;
 		}
 
-		userUid = _uid;
-		serverIp = _ip;
+		userUid = uid;
+		serverIp = ip;
 		isRun = true;
 
 		sendClient = UdpManager.Instance.GetClient();
 //		sendClient = new UdpClient(NormalData.recvPort);
 //		sendEndPort = new IPEndPoint(IPAddress.Parse(_ip), ServerConfig.udpRecvPort);	
 
-		Thread t = new Thread(new ThreadStart(RecvThread));
+		var t = new Thread(new ThreadStart(RecvThread));
 		t.Start();
 
 
@@ -51,20 +51,19 @@ public class ClientUdp {
 
 	}
 
-	private void CreatSendEndPort(int _port){
-		sendEndPort = new IPEndPoint(IPAddress.Parse(serverIp), _port);
+	private void CreatSendEndPort(int port){
+		sendEndPort = new IPEndPoint(IPAddress.Parse(serverIp), port);
 	}
 
-	public void SendMessage(byte[] _mes){
-		if (isRun) {
-			try {
-				sendClient.Send (_mes,_mes.Length,sendEndPort);	
-//				GameData.Instance().sendNum+=_mes.Length;
-				//				Debug.Log("发送量:" + _mes.Length.ToString() + "," + GameData.Instance().sendNum.ToString());
-			} catch (Exception ex) {
-				Debug.Log ("udp发送失败:" + ex.Message);
-			}
-
+	public void SendMessage(byte[] mes)
+	{
+		if (!isRun) return;
+		try {
+			sendClient.Send (mes,mes.Length,sendEndPort);	
+            //GameData.Instance().sendNum+=_mes.Length;
+			//Debug.Log("发送量:" + _mes.Length.ToString() + "," + GameData.Instance().sendNum.ToString());
+		} catch (Exception ex) {
+			Debug.Log ("udp发送失败:" + ex.Message);
 		}
 	}
 
@@ -78,17 +77,17 @@ public class ClientUdp {
 	private void RecvThread()
 	{
 
-		IPEndPoint endpoint = new IPEndPoint(IPAddress.Parse(serverIp), UdpManager.Instance.recvPort);
+		var endpoint = new IPEndPoint(IPAddress.Parse(serverIp), UdpManager.Instance.recvPort);
 		while (isRun)
 		{
 			try {
-				byte[] buf = sendClient.Receive(ref endpoint);
+				var buf = sendClient.Receive(ref endpoint);
 
 				if (sendEndPort == null) {
 					//Debug.Log("接收客户端udp信息:" + endpoint.Port);
 					sendPortNum = endpoint.Port;
 				}
-				 string str = System.Text.Encoding.UTF8.GetString(buf);
+				var str = System.Text.Encoding.UTF8.GetString(buf);
 
 				Debug.Log("str *** " + str);
 
@@ -101,8 +100,8 @@ public class ClientUdp {
 				//delegate_analyze_message((PBCommon.CSID)packMessageId,bodyData);
 
 				//是客户端,统计接收量
-//				GameData.Instance().recvNum+=buf.Length;
-				//				Debug.Log("发送量:" + buf.Length.ToString() + "," + GameData.Instance().recvNum.ToString());
+				//GameData.Instance().recvNum+=buf.Length;
+				//Debug.Log("发送量:" + buf.Length.ToString() + "," + GameData.Instance().recvNum.ToString());
 			} catch (Exception ex) {
 				Debug.Log (endpoint.Address+ "udpClient接收数据异常:" + ex.Message);
 			}

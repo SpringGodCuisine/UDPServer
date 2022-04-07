@@ -8,30 +8,28 @@ using System.Threading;
 using System.Linq;
 
 public class ServerTcp {
- 
-	static Socket serverSocket;  
+	
+	private static Socket _serverSocket;
 
 	private bool isRun = false;
-	private Dictionary<string,Socket> dic_clientSocket = new Dictionary<string, Socket>();
+	private readonly Dictionary<string,Socket> dicClientSocket = new Dictionary<string, Socket>();
 
 
-	private static readonly object stLockObj = new object ();
-	private static ServerTcp instance;
+	private static readonly object StLockObj = new object ();
+	private static ServerTcp _instance;
 
-	int headSize = 2;//包头长度 固定2
-	byte[] saveBuffer = null;//不完整的数据包，即用户自定义缓冲区
+	private const int HeadSize = 2; //包头长度 固定2
+	private byte[] saveBuffer = null;//不完整的数据包，即用户自定义缓冲区
 
 
 	public static ServerTcp Instance
 	{
 		get{ 
-			lock (stLockObj) {
-				if (instance == null)
-				{
-					instance = new ServerTcp();
-				}	
+			lock (StLockObj)
+			{
+				_instance ??= new ServerTcp();
 			}
-			return instance;
+			return _instance;
 		}
 	}
 
@@ -40,24 +38,20 @@ public class ServerTcp {
 		
 	}
 
-	public void Destory(){
-		instance = null;
-	}
-
 	public void StartServer(){
 
 		try {
-			IPAddress ip = IPAddress.Parse("192.168.1.5");
+			var ip = IPAddress.Parse("192.168.3.151");
 
-			serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);  
+			_serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);  
 
-			serverSocket.Bind(new IPEndPoint(ip, 13001));  //绑定IP地址：端口  
-			serverSocket.Listen(1000);    //设定最多10个排队连接请求  
-			Debug.Log("启动监听" + serverSocket.LocalEndPoint.ToString() + "成功");
+			_serverSocket.Bind(new IPEndPoint(ip, 13001));  //绑定IP地址：端口  
+			_serverSocket.Listen(1000);    //设定最多10个排队连接请求  
+			Debug.Log("启动监听" + _serverSocket.LocalEndPoint.ToString() + "成功");
 			isRun = true;
 
-			//通过Clientsoket发送数据  
-			Thread myThread = new Thread(ListenClientConnect);  
+			//通过ClientSocket发送数据
+			var myThread = new Thread(ListenClientConnect);  
 			myThread.Start();  	
 
 		} catch (Exception ex) {
@@ -72,10 +66,8 @@ public class ServerTcp {
 		while (isRun)  
 		{  
 			try {
-				Socket clientSocket = serverSocket.Accept();   
-
-
-				Thread receiveThread = new Thread(ReceiveMessage);  
+				var clientSocket = _serverSocket.Accept();
+				var receiveThread = new Thread(ReceiveMessage);  
 				receiveThread.Start(clientSocket);  	
 			} catch (Exception ex) {
 				Debug.Log ("监听失败:" + ex.Message);
@@ -83,7 +75,7 @@ public class ServerTcp {
 		}  
 	}
 
-    //				clientSocket.IOControl(IOControlCode.KeepAliveValues, inOptionValues, null);
+    //clientSocket.IOControl(IOControlCode.KeepAliveValues, inOptionValues, null);
 
     public void EndServer(){
 
@@ -93,30 +85,30 @@ public class ServerTcp {
 
 		isRun = false;
 		try {
-			foreach (var item in dic_clientSocket) {
+			foreach (var item in dicClientSocket) {
 				item.Value.Close ();
 			}
 
-			dic_clientSocket.Clear ();
+			dicClientSocket.Clear ();
 
-			if (serverSocket != null) {
-				serverSocket.Close ();
-				serverSocket = null;	
-			}	
+			if (_serverSocket == null) return;
+			
+			_serverSocket.Close ();
+			_serverSocket = null;
 		} catch (Exception ex) {
 			Debug.Log("tcp服务器关闭失败:" + ex.Message);
 		}
 
 	}
 
-	public void CloseClientTcp(string _socketIp){
-		try {
-			if (dic_clientSocket.ContainsKey(_socketIp)) {
-				if (dic_clientSocket [_socketIp] != null) {
-					dic_clientSocket [_socketIp].Close();
-				}
-				dic_clientSocket.Remove (_socketIp);
-			}	
+    private void CloseClientTcp(string socketIp){
+		try
+		{
+			if (!dicClientSocket.ContainsKey(socketIp)) return;
+			if (dicClientSocket [socketIp] != null) {
+				dicClientSocket [socketIp].Close();
+			}
+			dicClientSocket.Remove (socketIp);
 		} catch (Exception ex) {
 			Debug.Log ("关闭客户端..." + ex.Message);
 		}
@@ -124,67 +116,67 @@ public class ServerTcp {
 	}
 
 	public int GetClientCount(){
-		return dic_clientSocket.Count;
+		return dicClientSocket.Count;
 	}
 
 	public List<string> GetAllClientIp(){
-		return new List<string> (dic_clientSocket.Keys);
+		return new List<string> (dicClientSocket.Keys);
 	}
 
 		 
 	private void ReceiveMessage(object clientSocket)  
 	{  
-		Socket myClientSocket = (Socket)clientSocket;
-      //  Debug.Log(myClientSocket.RemoteEndPoint.ToString());
-		string _socketIp = myClientSocket.RemoteEndPoint.ToString().Split(':')[0]; 
+		var myClientSocket = (Socket)clientSocket;
+        //Debug.Log(myClientSocket.RemoteEndPoint.ToString());
+		var socketIp = myClientSocket.RemoteEndPoint.ToString().Split(':')[0]; 
 
-		Debug.Log ("有客户端连接:" + _socketIp);
+		Debug.Log ("有客户端连接:" + socketIp);
 
-		dic_clientSocket[_socketIp] = myClientSocket;	
+		dicClientSocket[socketIp] = myClientSocket;	
 
-		bool _flag = true;
-
-		byte[] resultData = new byte[1048];
-		while (isRun && _flag)  
+		var flag = true;
+		
+		var resultData = new byte[1048];
+		while (isRun && flag)  
 		{  
 			try  
 			{  
  			    Debug.Log("_socketName是否连接:" + myClientSocket.Connected);
 			 
-				int _size = myClientSocket.Receive(resultData);   
-				if (_size <= 0) {
+				var size = myClientSocket.Receive(resultData);   
+				if (size <= 0) {
 					throw new Exception("客户端关闭了222~");
 				}
 
-				// string str = System.Text.Encoding.UTF8.GetString(resultData);
-			
+				//var str = System.Text.Encoding.UTF8.GetString(resultData);
+				//Debug.Log("Str ++ " + str);
+				
+				OnReceive(0, resultData);
 
-				 OnReceive(0, resultData);
-
-				//Int16 packlength = BitConverter.ToInt16(resultData, 0);
-				//byte[] bodyData = new byte[packlength];
-				//Array.Copy(resultData, 2, bodyData, 0, packlength);
-			 //  string str = System.Text.Encoding.UTF8.GetString(bodyData);
-				//Debug.Log("str ==" + str);
+				var packlength = BitConverter.ToInt16(resultData, 0);
+				var bodyData = new byte[packlength];
+				Array.Copy(resultData, 2, bodyData, 0, packlength);
+			    var str = System.Text.Encoding.UTF8.GetString(bodyData);
+				Debug.Log("str ==" + str);
+				
 				//Debug.Log(_size);
 				//Int16 packlength  = BitConverter.ToInt16(resultData, 0);
 				//byte[] bodyData = new byte[packlength];
 				//Array.Copy(resultData, 2, bodyData, 0, packlength); 
 				//string str = System.Text.Encoding.UTF8.GetString(bodyData); 
 				//Debug.Log(str);
-
-
+				
 			}
 			catch (Exception ex)  
 			{  
-				Debug.Log(_socketIp + "接收客户端数据异常: " + ex.Message);  
+				Debug.Log(socketIp + "接收客户端数据异常: " + ex.Message);  
 
-				_flag = false;
+				flag = false;
 				break;  
 			}  
 		}  
 			
-		CloseClientTcp (_socketIp);
+		CloseClientTcp (socketIp);
 	}  
 
  
@@ -193,7 +185,7 @@ public class ServerTcp {
         Debug.Log("SendMessage aaa  ----- _socketName  " + _socketName); 
         if (isRun) {
 			try {
-				dic_clientSocket [_socketName].Send (_mes);	
+				dicClientSocket [_socketName].Send (_mes);	
 			} catch (Exception ex) {
 				Debug.Log ("发数据给异常:" + ex.Message);
 			}	
@@ -205,61 +197,56 @@ public class ServerTcp {
 	{
 	 
 		// 系统缓冲区长度
-		int bytesRead = bytes.Length;
-		if (bytesRead > 0)
-		{
-			if (saveBuffer == null)//第一次接收
-				saveBuffer = bytes;//把系统缓冲区数据放在自定义缓冲区里面
-			else
-				saveBuffer = saveBuffer.Concat(bytes).ToArray();//拼接上次尾包
+		var bytesRead = bytes.Length;
+		if (bytesRead <= 0) return true;
+		saveBuffer = saveBuffer == null ? bytes : saveBuffer.Concat(bytes).ToArray();
 															
-			int haveRead = 0;         //已经完成读取的数据包长度
+		var haveRead = 0;         //已经完成读取的数据包长度
 									 
-			int totalLen = saveBuffer.Length; //这里totalLen的长度有可能大于缓冲区大小的(因为 这里的saveBuffer 是系统缓冲区+不完整的数据包)
-			while (haveRead <= totalLen)
+		var totalLen = saveBuffer.Length; //这里totalLen的长度有可能大于缓冲区大小的(因为 这里的saveBuffer 是系统缓冲区+不完整的数据包)
+		while (haveRead <= totalLen)
+		{
+			//如果在N次拆解后剩余的数据包 小于 包头的长度 
+			//则剩下的是非完整的数据包
+			if (totalLen - haveRead < HeadSize)
 			{
-				//如果在N次拆解后剩余的数据包 小于 包头的长度 
-				//则剩下的是非完整的数据包
-				if (totalLen - haveRead < headSize)
-				{
-					byte[] byteSub = new byte[totalLen - haveRead];
-					//把剩下不够一个完整的数据包存起来
-					Buffer.BlockCopy(saveBuffer, haveRead, byteSub, 0, totalLen - haveRead);
-					saveBuffer = byteSub;
-					totalLen = 0;
-					break;
-				}
-				//如果够了一个完整包，则读取包头的数据
-				byte[] headByte = new byte[headSize];
-				Buffer.BlockCopy(saveBuffer, haveRead, headByte, 0, headSize);//从缓冲区里读取包头的字节
-				int bodySize = BitConverter.ToInt16(headByte, 0);//从包头里面分析出包体的长度
+				byte[] byteSub = new byte[totalLen - haveRead];
+				//把剩下不够一个完整的数据包存起来
+				Buffer.BlockCopy(saveBuffer, haveRead, byteSub, 0, totalLen - haveRead);
+				saveBuffer = byteSub;
+				totalLen = 0;
+				break;
+			}
+			//如果够了一个完整包，则读取包头的数据
+			byte[] headByte = new byte[HeadSize];
+			Buffer.BlockCopy(saveBuffer, haveRead, headByte, 0, HeadSize);//从缓冲区里读取包头的字节
+			int bodySize = BitConverter.ToInt16(headByte, 0);//从包头里面分析出包体的长度
 
-				//这里的 haveRead=等于N个数据包的长度 从0开始；0,1,2,3....N
-				//如果自定义缓冲区拆解N个包后的长度 大于 总长度，说最后一段数据不够一个完整的包了，拆出来保存
-				if (haveRead + headSize + bodySize > totalLen)
-				{
-					byte[] byteSub = new byte[totalLen - haveRead];
-					Buffer.BlockCopy(saveBuffer, haveRead, byteSub, 0, totalLen - haveRead);
-					saveBuffer = byteSub;
+			//这里的 haveRead=等于N个数据包的长度 从0开始；0,1,2,3....N
+			//如果自定义缓冲区拆解N个包后的长度 大于 总长度，说最后一段数据不够一个完整的包了，拆出来保存
+			if (haveRead + HeadSize + bodySize > totalLen)
+			{
+				byte[] byteSub = new byte[totalLen - haveRead];
+				Buffer.BlockCopy(saveBuffer, haveRead, byteSub, 0, totalLen - haveRead);
+				saveBuffer = byteSub;
+				break;
+			}
+			else
+			{
+				if (bodySize == 0)
+				{ 
+					saveBuffer = null;
 					break;
 				}
-				else
+				//挨个分解每个包，解析成实际文字 
+				String strc = Encoding.UTF8.GetString(saveBuffer, haveRead + HeadSize, bodySize);
+				Debug.Log("得到包"  + strc); 
+				//依次累加当前的数据包的长度
+				haveRead = haveRead + HeadSize + bodySize;
+				if (HeadSize + bodySize == bytesRead)//如果当前接收的数据包长度正好等于缓冲区长度，则待拼接的不规则数据长度归0
 				{
-					if (bodySize == 0)
-					{ 
-						 saveBuffer = null;
-						 break;
-					}
-					//挨个分解每个包，解析成实际文字 
-					String strc = Encoding.UTF8.GetString(saveBuffer, haveRead + headSize, bodySize);
-					Debug.Log("得到包"  + strc); 
-					//依次累加当前的数据包的长度
-					haveRead = haveRead + headSize + bodySize;
-					if (headSize + bodySize == bytesRead)//如果当前接收的数据包长度正好等于缓冲区长度，则待拼接的不规则数据长度归0
-					{
-						saveBuffer = null;//设置空 回到原始状态
-						totalLen = 0;//清0
-					}
+					saveBuffer = null;//设置空 回到原始状态
+					totalLen = 0;//清0
 				}
 			}
 		}
